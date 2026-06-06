@@ -1,231 +1,338 @@
-const STORAGE_KEY = "stick-ideas-v1";
+const STORAGE_KEY = "stick-projects-v2";
+const accents = ["#d7ff58", "#cce4ff", "#ffd5be", "#ded5ff"];
 
-const seedIdeas = [
-  {
-    id: crypto.randomUUID(),
-    title: "매일 한 문장씩 쓰는 감정 일기",
-    content: "복잡한 기록 대신 오늘의 감정을 한 문장과 하나의 색으로만 남기는 작은 서비스.",
-    tags: ["사이드프로젝트", "라이프"],
-    status: "active",
-    favorite: true,
-    createdAt: "2026-06-05T09:30:00.000Z",
-  },
-  {
-    id: crypto.randomUUID(),
-    title: "동네의 조용한 작업 공간 지도",
-    content: "카페의 콘센트 수보다 소음과 좌석 간격을 중심으로 소개하는 작업 공간 지도.",
-    tags: ["로컬", "커뮤니티"],
-    status: "spark",
-    favorite: false,
-    createdAt: "2026-06-03T12:10:00.000Z",
-  },
-  {
-    id: crypto.randomUUID(),
-    title: "읽은 문장을 다시 만나는 방법",
-    content: "책에서 저장한 문장을 잊을 즈음 무작위로 다시 보여주는 위젯.",
-    tags: ["독서", "위젯"],
-    status: "done",
-    favorite: true,
-    createdAt: "2026-05-28T04:20:00.000Z",
-  },
-];
+const seedProjects = [{
+  id: crypto.randomUUID(),
+  name: "나만의 브랜드 만들기",
+  description: "브랜드의 분위기, 콘텐츠와 제품 아이디어를 한곳에 모으는 프로젝트",
+  accent: accents[0],
+  createdAt: new Date().toISOString(),
+  ideas: [{ id: crypto.randomUUID(), type: "idea", title: "매일 쓰고 싶은 물건을 만든다", body: "보기 좋은 것보다 손이 자주 가는 제품을 브랜드의 기준으로 삼기.", tags: ["브랜드", "방향성"], createdAt: new Date().toISOString() }],
+  inspirations: []
+}];
 
-const statusMap = {
-  spark: { label: "씨앗", color: "#d7ff58" },
-  active: { label: "진행 중", color: "#cce4ff" },
-  done: { label: "완료", color: "#ded5ff" },
-};
-
-let ideas = loadIdeas();
-let currentFilter = "all";
-let editingId = null;
-
+let projects = loadProjects();
+let activeProjectId = null;
+let activeTab = "all";
+let activeRecord = null;
+let fetchedMetadata = null;
+let draggedRecord = null;
+let suppressRecordClick = false;
 const $ = (selector) => document.querySelector(selector);
-const elements = {
-  ideaGrid: $("#ideaGrid"),
-  emptyState: $("#emptyState"),
-  ideaForm: $("#ideaForm"),
-  capture: $("#captureSection"),
-  captureExpand: $("#captureExpand"),
-  titleInput: $("#titleInput"),
-  contentInput: $("#contentInput"),
-  tagsInput: $("#tagsInput"),
-  statusInput: $("#statusInput"),
-  searchInput: $("#searchInput"),
-  sortSelect: $("#sortSelect"),
-  filterTabs: $("#filterTabs"),
-  dialog: $("#ideaDialog"),
-  editTitle: $("#editTitle"),
-  editContent: $("#editContent"),
-  editTags: $("#editTags"),
-  editStatus: $("#editStatus"),
-  toast: $("#toast"),
-};
 
-function loadIdeas() {
+function loadProjects() {
+  try { return JSON.parse(localStorage.getItem(STORAGE_KEY)) || seedProjects; }
+  catch { return seedProjects; }
+}
+function saveProjects() { localStorage.setItem(STORAGE_KEY, JSON.stringify(projects)); }
+function activeProject() { return projects.find((project) => project.id === activeProjectId); }
+function escapeHtml(value = "") { return String(value).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#039;" })[c]); }
+function formatDate(value) { return new Intl.DateTimeFormat("ko-KR", { month: "short", day: "numeric" }).format(new Date(value)); }
+function tags(value) { return value.split(",").map((tag) => tag.trim()).filter(Boolean); }
+function sourceFromUrl(url) {
   try {
-    const saved = localStorage.getItem(STORAGE_KEY);
-    return saved ? JSON.parse(saved) : seedIdeas;
-  } catch {
-    return seedIdeas;
-  }
+    const host = new URL(url).hostname.replace("www.", "");
+    if (host.includes("youtube.com") || host.includes("youtu.be")) return "youtube";
+    if (host.includes("instagram.com")) return "instagram";
+    return "web";
+  } catch { return "web"; }
 }
-
-function saveIdeas() {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(ideas));
+function sourceLabel(source) { return ({ youtube: "YouTube", instagram: "Instagram", web: "Web", idea: "My Idea" })[source] || source; }
+function youtubeVideoId(url) {
+  try {
+    const parsed = new URL(url);
+    const host = parsed.hostname.replace("www.", "");
+    if (host === "youtu.be") return parsed.pathname.split("/").filter(Boolean)[0] || "";
+    if (!host.includes("youtube.com")) return "";
+    if (parsed.pathname === "/watch") return parsed.searchParams.get("v") || "";
+    const parts = parsed.pathname.split("/").filter(Boolean);
+    if (["shorts", "embed", "live"].includes(parts[0])) return parts[1] || "";
+    return "";
+  } catch { return ""; }
 }
-
-function escapeHtml(value = "") {
-  return value.replace(/[&<>"']/g, (character) => ({
-    "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#039;",
-  })[character]);
+async function fetchJson(url, timeout = 10000) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeout);
+  try {
+    const response = await fetch(url, { signal: controller.signal });
+    if (!response.ok) throw new Error(`request failed: ${response.status}`);
+    return await response.json();
+  } finally { clearTimeout(timer); }
 }
-
-function formatDate(dateString) {
-  return new Intl.DateTimeFormat("ko-KR", { month: "short", day: "numeric" }).format(new Date(dateString));
+async function fetchYoutubeMetadata(url) {
+  const videoId = youtubeVideoId(url);
+  if (!videoId) throw new Error("invalid youtube url");
+  // noembed exposes YouTube's oEmbed data with browser-compatible CORS headers.
+  const data = await fetchJson(`https://noembed.com/embed?url=${encodeURIComponent(url)}`);
+  if (data.error) throw new Error(data.error);
+  return {
+    title: data.title || "YouTube 영상",
+    description: data.author_name ? `${data.author_name} 채널의 YouTube 영상` : "",
+    image: data.thumbnail_url || `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`,
+    source: "youtube",
+  };
 }
-
-function render() {
-  const query = elements.searchInput.value.trim().toLowerCase();
-  const sort = elements.sortSelect.value;
-  const filtered = ideas
-    .filter((idea) => {
-      const matchesFilter = currentFilter === "all"
-        || (currentFilter === "favorite" && idea.favorite)
-        || idea.status === currentFilter;
-      const searchable = `${idea.title} ${idea.content} ${idea.tags.join(" ")}`.toLowerCase();
-      return matchesFilter && searchable.includes(query);
-    })
-    .sort((a, b) => {
-      if (sort === "oldest") return new Date(a.createdAt) - new Date(b.createdAt);
-      if (sort === "title") return a.title.localeCompare(b.title, "ko");
-      return new Date(b.createdAt) - new Date(a.createdAt);
-    });
-
-  elements.ideaGrid.innerHTML = filtered.map((idea) => {
-    const status = statusMap[idea.status] || statusMap.spark;
-    return `
-      <article class="idea-card" data-id="${idea.id}" style="--accent:${status.color}" tabindex="0">
-        <div class="card-top">
-          <span class="status-badge">${status.label}</span>
-          <button class="favorite-button ${idea.favorite ? "active" : ""}" data-favorite="${idea.id}" aria-label="즐겨찾기" type="button">${idea.favorite ? "★" : "☆"}</button>
-        </div>
-        <h3>${escapeHtml(idea.title)}</h3>
-        <p>${escapeHtml(idea.content || "아직 설명이 없어요. 열어서 생각을 더해보세요.")}</p>
-        <div class="card-footer">
-          <div class="tag-list">${idea.tags.map((tag) => `<span class="tag">#${escapeHtml(tag)}</span>`).join("")}</div>
-          <span class="card-date">${formatDate(idea.createdAt)}</span>
-        </div>
-      </article>
-    `;
-  }).join("");
-
-  elements.emptyState.hidden = filtered.length > 0;
-  $("#totalCount").textContent = ideas.length;
-  $("#activeCount").textContent = ideas.filter((idea) => idea.status === "active").length;
-  $("#favoriteCount").textContent = ideas.filter((idea) => idea.favorite).length;
+async function fetchGeneralMetadata(url) {
+  const result = await fetchJson(`https://api.microlink.io/?url=${encodeURIComponent(url)}`);
+  const data = result.data || {};
+  return {
+    title: data.title || sourceLabel(sourceFromUrl(url)),
+    description: data.description || "",
+    image: data.image?.url || data.logo?.url || "",
+    source: sourceFromUrl(url),
+  };
 }
-
 function showToast(message) {
-  elements.toast.textContent = message;
-  elements.toast.classList.add("show");
+  $("#toast").textContent = message;
+  $("#toast").classList.add("show");
   clearTimeout(showToast.timer);
-  showToast.timer = setTimeout(() => elements.toast.classList.remove("show"), 2200);
+  showToast.timer = setTimeout(() => $("#toast").classList.remove("show"), 2200);
+}
+function closeDialogs() { document.querySelectorAll("dialog[open]").forEach((dialog) => dialog.close()); }
+
+function renderHome() {
+  const query = $("#searchInput").value.trim().toLowerCase();
+  const filtered = projects.filter((project) => `${project.name} ${project.description} ${[...project.ideas, ...project.inspirations].map((item) => `${item.title} ${item.body || ""}`).join(" ")}`.toLowerCase().includes(query));
+  $("#projectGrid").innerHTML = filtered.map((project) => `
+    <button class="project-card" style="--accent:${project.accent}" data-project="${project.id}" type="button">
+      <span class="project-icon">✦</span>
+      <h3>${escapeHtml(project.name)}</h3>
+      <p>${escapeHtml(project.description || "설명이 없는 프로젝트입니다.")}</p>
+      <span class="project-meta"><span>아이디어 ${project.ideas.length}</span><span>영감 ${project.inspirations.length}</span></span>
+    </button>`).join("");
+  $("#projectEmpty").hidden = filtered.length > 0;
+  $("#projectCount").textContent = projects.length;
+  $("#ideaCount").textContent = projects.reduce((sum, project) => sum + project.ideas.length, 0);
+  $("#inspirationCount").textContent = projects.reduce((sum, project) => sum + project.inspirations.length, 0);
 }
 
-function openCapture() {
-  elements.capture.classList.add("open");
-  elements.capture.scrollIntoView({ behavior: "smooth", block: "center" });
-  setTimeout(() => elements.titleInput.focus(), 350);
+function renderDetail() {
+  const project = activeProject();
+  if (!project) return showHome();
+  $("#detailIcon").style.setProperty("--accent", project.accent);
+  $("#detailTitle").textContent = project.name;
+  $("#detailDescription").textContent = project.description || "이 프로젝트에 아이디어와 영감을 모아보세요.";
+  const query = $("#searchInput").value.trim().toLowerCase();
+  const type = $("#typeFilter").value;
+  const matchesQuery = (item) => `${item.title} ${item.body || ""} ${(item.tags || []).join(" ")}`.toLowerCase().includes(query);
+  const ideas = project.ideas.filter(matchesQuery);
+  const inspirations = project.inspirations
+    .filter((item) => type === "all" || item.source === type)
+    .filter(matchesQuery);
+  $("#collectionTitle").textContent = ({ all: "모든 기록", ideas: "나의 아이디어", inspirations: "영감 자료" })[activeTab];
+  $("#typeFilter").hidden = activeTab === "ideas";
+  $("#ideaPanel").hidden = activeTab === "inspirations";
+  $("#inspirationPanel").hidden = activeTab === "ideas";
+  $("#collectionBoard").classList.toggle("single-panel", activeTab !== "all");
+  $("#ideaRecordCount").textContent = ideas.length;
+  $("#inspirationRecordCount").textContent = inspirations.length;
+  $("#ideaCollectionGrid").innerHTML = ideas.map(recordCard).join("");
+  $("#inspirationCollectionGrid").innerHTML = inspirations.map(recordCard).join("");
+  $("#ideaCollectionEmpty").hidden = ideas.length > 0;
+  $("#inspirationCollectionEmpty").hidden = inspirations.length > 0;
 }
 
-function openIdea(id) {
-  const idea = ideas.find((item) => item.id === id);
-  if (!idea) return;
-  editingId = id;
-  elements.editTitle.value = idea.title;
-  elements.editContent.value = idea.content;
-  elements.editTags.value = idea.tags.join(", ");
-  elements.editStatus.value = idea.status;
-  elements.dialog.showModal();
+function recordCard(item) {
+  return `
+    <button class="record-card" data-record="${item.id}" data-record-type="${item.type}" draggable="true" aria-label="${escapeHtml(item.title)}, 드래그하여 순서 변경" type="button">
+      ${item.image ? `<img class="record-image" src="${escapeHtml(item.image)}" alt="" />` : ""}
+      <span class="record-card-body">
+        <span class="source-badge ${item.type === "idea" ? "idea" : ""}">${sourceLabel(item.source || "idea")}</span>
+        <h3>${escapeHtml(item.title)}</h3>
+        <p>${escapeHtml(item.body || "저장된 메모가 없습니다.")}</p>
+        <span class="record-foot"><span>${(item.tags || []).slice(0, 2).map((tag) => `#${escapeHtml(tag)}`).join(" ")}</span><span>${formatDate(item.createdAt)}</span></span>
+      </span>
+    </button>`;
 }
 
-elements.captureExpand.addEventListener("click", () => elements.capture.classList.toggle("open"));
-$("#topAddButton").addEventListener("click", openCapture);
+function showHome() {
+  activeProjectId = null;
+  $("#projectHome").hidden = false;
+  $("#projectDetail").hidden = true;
+  $("#headerAddButton").textContent = "+ 새 프로젝트";
+  renderHome();
+  window.scrollTo({ top: 0, behavior: "smooth" });
+}
+function showProject(id) {
+  activeProjectId = id;
+  activeTab = "all";
+  $("#projectHome").hidden = true;
+  $("#projectDetail").hidden = false;
+  $("#headerAddButton").textContent = "+ 기록 추가";
+  $("#contentTabs").querySelectorAll("button").forEach((button) => button.classList.toggle("active", button.dataset.tab === "all"));
+  renderDetail();
+  window.scrollTo({ top: 0, behavior: "smooth" });
+}
+function openProjectDialog() { $("#projectForm").reset(); $("#projectDialog").showModal(); }
+function openIdeaDialog() { $("#ideaForm").reset(); $("#ideaDialog").showModal(); }
+function openInspirationDialog() {
+  $("#inspirationForm").reset();
+  $("#metadataPreview").hidden = true;
+  $("#fetchStatus").textContent = "주소를 붙여넣으면 제목과 내용을 자동으로 가져옵니다.";
+  fetchedMetadata = null;
+  $("#inspirationDialog").showModal();
+}
 
-elements.ideaForm.addEventListener("submit", (event) => {
-  event.preventDefault();
-  ideas.unshift({
-    id: crypto.randomUUID(),
-    title: elements.titleInput.value.trim(),
-    content: elements.contentInput.value.trim(),
-    tags: elements.tagsInput.value.split(",").map((tag) => tag.trim()).filter(Boolean),
-    status: elements.statusInput.value,
-    favorite: false,
-    createdAt: new Date().toISOString(),
-  });
-  saveIdeas();
-  elements.ideaForm.reset();
-  elements.capture.classList.remove("open");
-  render();
-  showToast("새 아이디어를 붙여두었어요.");
-});
-
-elements.ideaGrid.addEventListener("click", (event) => {
-  const favoriteButton = event.target.closest("[data-favorite]");
-  if (favoriteButton) {
-    const idea = ideas.find((item) => item.id === favoriteButton.dataset.favorite);
-    idea.favorite = !idea.favorite;
-    saveIdeas();
-    render();
+async function fetchMetadata() {
+  const url = $("#urlInput").value.trim();
+  if (!url) return $("#urlInput").focus();
+  try { new URL(url); } catch {
+    $("#fetchStatus").textContent = "올바른 주소를 입력해주세요.";
     return;
   }
-  const card = event.target.closest(".idea-card");
-  if (card) openIdea(card.dataset.id);
+  $("#fetchMetadataButton").disabled = true;
+  $("#fetchStatus").textContent = "주소에서 정보를 가져오는 중입니다...";
+  try {
+    fetchedMetadata = sourceFromUrl(url) === "youtube"
+      ? await fetchYoutubeMetadata(url)
+      : await fetchGeneralMetadata(url);
+    $("#inspirationTitleInput").value = fetchedMetadata.title;
+    $("#previewTitle").textContent = fetchedMetadata.title;
+    $("#previewDescription").textContent = fetchedMetadata.description || "내용을 가져오지 못했습니다. 메모를 직접 추가할 수 있습니다.";
+    $("#previewSource").textContent = sourceLabel(fetchedMetadata.source);
+    $("#previewImage").src = fetchedMetadata.image;
+    $("#previewImage").hidden = !fetchedMetadata.image;
+    $("#metadataPreview").hidden = false;
+    $("#fetchStatus").textContent = "정보를 가져왔습니다. 내용을 확인한 뒤 저장하세요.";
+  } catch {
+    const source = sourceFromUrl(url);
+    const videoId = youtubeVideoId(url);
+    fetchedMetadata = {
+      title: source === "youtube" ? "YouTube 영상" : "",
+      description: "",
+      image: videoId ? `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg` : "",
+      source,
+    };
+    $("#inspirationTitleInput").value ||= fetchedMetadata.title || sourceLabel(source);
+    $("#previewTitle").textContent = $("#inspirationTitleInput").value;
+    $("#previewDescription").textContent = source === "youtube"
+      ? "영상 썸네일은 확인했습니다. 제목을 가져오지 못해 직접 수정할 수 있습니다."
+      : "내용을 가져오지 못했습니다. 제목과 메모를 직접 입력할 수 있습니다.";
+    $("#previewSource").textContent = sourceLabel(source);
+    $("#previewImage").src = fetchedMetadata.image;
+    $("#previewImage").hidden = !fetchedMetadata.image;
+    $("#metadataPreview").hidden = false;
+    $("#fetchStatus").textContent = source === "youtube"
+      ? "YouTube 정보를 일부 가져왔습니다. 제목을 확인해주세요."
+      : "자동으로 가져오지 못했습니다. 제목과 메모를 직접 입력해 저장할 수 있습니다.";
+  } finally { $("#fetchMetadataButton").disabled = false; }
+}
+
+function openRecord(id, type) {
+  const project = activeProject();
+  activeRecord = (type === "idea" ? project.ideas : project.inspirations).find((item) => item.id === id);
+  if (!activeRecord) return;
+  $("#recordImage").src = activeRecord.image || "";
+  $("#recordImage").hidden = !activeRecord.image;
+  $("#recordSource").textContent = sourceLabel(activeRecord.source || "idea");
+  $("#recordSource").classList.toggle("idea", activeRecord.type === "idea");
+  $("#recordTitle").textContent = activeRecord.title;
+  $("#recordBody").textContent = activeRecord.body || "저장된 메모가 없습니다.";
+  $("#recordTags").innerHTML = (activeRecord.tags || []).map((tag) => `<span>#${escapeHtml(tag)}</span>`).join("");
+  $("#recordLink").href = activeRecord.url || "#";
+  $("#recordLink").hidden = !activeRecord.url;
+  $("#recordDialog").showModal();
+}
+
+function clearDropIndicators() {
+  document.querySelectorAll(".drop-target, .drop-target-grid").forEach((element) => element.classList.remove("drop-target", "drop-target-grid"));
+}
+
+function reorderRecord(type, sourceId, targetId) {
+  const project = activeProject();
+  const key = type === "idea" ? "ideas" : "inspirations";
+  const records = project[key];
+  const sourceIndex = records.findIndex((item) => item.id === sourceId);
+  if (sourceIndex < 0 || sourceId === targetId) return false;
+  const [moved] = records.splice(sourceIndex, 1);
+  const targetIndex = targetId ? records.findIndex((item) => item.id === targetId) : records.length;
+  records.splice(targetIndex < 0 ? records.length : targetIndex, 0, moved);
+  saveProjects();
+  return true;
+}
+
+$("#projectForm").addEventListener("submit", (event) => {
+  event.preventDefault();
+  const project = { id: crypto.randomUUID(), name: $("#projectNameInput").value.trim(), description: $("#projectDescriptionInput").value.trim(), accent: accents[projects.length % accents.length], createdAt: new Date().toISOString(), ideas: [], inspirations: [] };
+  projects.unshift(project); saveProjects(); closeDialogs(); showProject(project.id); showToast("새 프로젝트를 만들었습니다.");
+});
+$("#ideaForm").addEventListener("submit", (event) => {
+  event.preventDefault();
+  activeProject().ideas.unshift({ id: crypto.randomUUID(), type: "idea", source: "idea", title: $("#ideaTitleInput").value.trim(), body: $("#ideaContentInput").value.trim(), tags: tags($("#ideaTagsInput").value), createdAt: new Date().toISOString() });
+  saveProjects(); closeDialogs(); renderDetail(); showToast("아이디어를 저장했습니다.");
+});
+$("#inspirationForm").addEventListener("submit", (event) => {
+  event.preventDefault();
+  const url = $("#urlInput").value.trim();
+  activeProject().inspirations.unshift({ id: crypto.randomUUID(), type: "inspiration", source: fetchedMetadata?.source || sourceFromUrl(url), title: $("#inspirationTitleInput").value.trim(), body: $("#inspirationMemoInput").value.trim() || fetchedMetadata?.description || "", image: fetchedMetadata?.image || "", url, tags: tags($("#inspirationTagsInput").value), createdAt: new Date().toISOString() });
+  saveProjects(); closeDialogs(); renderDetail(); showToast("영감 자료를 저장했습니다.");
 });
 
-elements.ideaGrid.addEventListener("keydown", (event) => {
-  if (event.key === "Enter" && event.target.matches(".idea-card")) openIdea(event.target.dataset.id);
+$("#projectGrid").addEventListener("click", (event) => { const card = event.target.closest("[data-project]"); if (card) showProject(card.dataset.project); });
+$("#collectionBoard").addEventListener("click", (event) => {
+  if (suppressRecordClick) return;
+  const card = event.target.closest("[data-record]");
+  if (card) openRecord(card.dataset.record, card.dataset.recordType);
 });
-
-elements.filterTabs.addEventListener("click", (event) => {
-  const button = event.target.closest("[data-filter]");
-  if (!button) return;
-  currentFilter = button.dataset.filter;
-  elements.filterTabs.querySelectorAll("button").forEach((item) => item.classList.toggle("active", item === button));
-  render();
+$("#collectionBoard").addEventListener("dragstart", (event) => {
+  const card = event.target.closest("[data-record]");
+  if (!card) return;
+  suppressRecordClick = true;
+  draggedRecord = { id: card.dataset.record, type: card.dataset.recordType };
+  event.dataTransfer.effectAllowed = "move";
+  event.dataTransfer.setData("text/plain", card.dataset.record);
+  requestAnimationFrame(() => card.classList.add("dragging"));
 });
-
-elements.searchInput.addEventListener("input", render);
-elements.sortSelect.addEventListener("change", render);
-
-$("#saveEditButton").addEventListener("click", () => {
-  const idea = ideas.find((item) => item.id === editingId);
-  const title = elements.editTitle.value.trim();
-  if (!idea || !title) return elements.editTitle.focus();
-  idea.title = title;
-  idea.content = elements.editContent.value.trim();
-  idea.tags = elements.editTags.value.split(",").map((tag) => tag.trim()).filter(Boolean);
-  idea.status = elements.editStatus.value;
-  saveIdeas();
-  elements.dialog.close();
-  render();
-  showToast("아이디어를 업데이트했어요.");
+$("#collectionBoard").addEventListener("dragover", (event) => {
+  if (!draggedRecord) return;
+  const grid = event.target.closest("[data-record-list]");
+  if (!grid || grid.dataset.recordList !== draggedRecord.type) return;
+  event.preventDefault();
+  event.dataTransfer.dropEffect = "move";
+  clearDropIndicators();
+  const target = event.target.closest("[data-record]");
+  if (target && target.dataset.record !== draggedRecord.id) target.classList.add("drop-target");
+  else grid.classList.add("drop-target-grid");
 });
-
-$("#deleteButton").addEventListener("click", () => {
-  ideas = ideas.filter((item) => item.id !== editingId);
-  saveIdeas();
-  elements.dialog.close();
-  render();
-  showToast("아이디어를 삭제했어요.");
-});
-
-document.addEventListener("keydown", (event) => {
-  if (event.key === "/" && document.activeElement.tagName !== "INPUT" && document.activeElement.tagName !== "TEXTAREA") {
-    event.preventDefault();
-    elements.searchInput.focus();
+$("#collectionBoard").addEventListener("drop", (event) => {
+  if (!draggedRecord) return;
+  const grid = event.target.closest("[data-record-list]");
+  if (!grid || grid.dataset.recordList !== draggedRecord.type) return;
+  event.preventDefault();
+  const target = event.target.closest("[data-record]");
+  const changed = reorderRecord(draggedRecord.type, draggedRecord.id, target?.dataset.record || null);
+  suppressRecordClick = true;
+  clearDropIndicators();
+  if (changed) {
+    renderDetail();
+    showToast("기록 순서를 변경했습니다.");
   }
+  draggedRecord = null;
+  setTimeout(() => { suppressRecordClick = false; }, 100);
 });
+$("#collectionBoard").addEventListener("dragend", () => {
+  clearDropIndicators();
+  document.querySelectorAll(".record-card.dragging").forEach((card) => card.classList.remove("dragging"));
+  draggedRecord = null;
+  setTimeout(() => { suppressRecordClick = false; }, 100);
+});
+$("#contentTabs").addEventListener("click", (event) => { const button = event.target.closest("[data-tab]"); if (!button) return; activeTab = button.dataset.tab; $("#contentTabs").querySelectorAll("button").forEach((item) => item.classList.toggle("active", item === button)); renderDetail(); });
+$("#deleteRecordButton").addEventListener("click", () => {
+  const project = activeProject(); const key = activeRecord.type === "idea" ? "ideas" : "inspirations";
+  project[key] = project[key].filter((item) => item.id !== activeRecord.id); saveProjects(); closeDialogs(); renderDetail(); showToast("기록을 삭제했습니다.");
+});
+$("#deleteProjectButton").addEventListener("click", () => { if (!confirm("이 프로젝트와 안의 모든 기록을 삭제할까요?")) return; projects = projects.filter((project) => project.id !== activeProjectId); saveProjects(); showHome(); showToast("프로젝트를 삭제했습니다."); });
+$("#newProjectButton").addEventListener("click", openProjectDialog);
+$("#headerAddButton").addEventListener("click", () => activeProjectId ? openIdeaDialog() : openProjectDialog());
+$("#addIdeaButton").addEventListener("click", openIdeaDialog);
+$("#addInspirationButton").addEventListener("click", openInspirationDialog);
+$("#fetchMetadataButton").addEventListener("click", fetchMetadata);
+$("#urlInput").addEventListener("paste", () => setTimeout(fetchMetadata, 50));
+$("#homeButton").addEventListener("click", showHome);
+$("#backButton").addEventListener("click", showHome);
+$("#typeFilter").addEventListener("change", renderDetail);
+$("#searchInput").addEventListener("input", () => activeProjectId ? renderDetail() : renderHome());
+document.querySelectorAll("[data-close]").forEach((button) => button.addEventListener("click", closeDialogs));
+document.addEventListener("keydown", (event) => { if (event.key === "/" && !["INPUT", "TEXTAREA"].includes(document.activeElement.tagName)) { event.preventDefault(); $("#searchInput").focus(); } });
 
-render();
+renderHome();

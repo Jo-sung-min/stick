@@ -3,140 +3,169 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="theme-color" content="#f4f2ec" />
-    <title>스틱 — 아이디어를 붙잡는 곳</title>
+    <meta name="theme-color" content="#f5f3ed" />
+    <title>stick - 아이디어와 영감을 프로젝트로</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link
-      href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Noto+Sans+KR:wght@400;500;600;700&display=swap"
-      rel="stylesheet"
-    />
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Noto+Sans+KR:wght@400;500;600;700&display=swap" rel="stylesheet" />
     <link rel="stylesheet" href="./styles.css" />
   </head>
   <body>
-    <div class="app-shell">
-      <header class="topbar">
-        <a class="brand" href="#" aria-label="스틱 홈">
-          <span class="brand-mark">S</span>
-          <span>stick</span>
-        </a>
+    <header class="topbar">
+      <button class="brand" id="homeButton" type="button" aria-label="홈으로 이동">
+        <span class="brand-mark">S</span><span>stick</span>
+      </button>
+      <label class="search-box">
+        <span>⌕</span>
+        <input id="searchInput" type="search" placeholder="프로젝트, 아이디어, 영감 검색" />
+        <kbd>/</kbd>
+      </label>
+      <button class="primary-button" id="headerAddButton" type="button">+ 새 프로젝트</button>
+    </header>
 
-        <label class="search-box">
-          <svg viewBox="0 0 24 24" aria-hidden="true">
-            <path d="m21 21-4.35-4.35m2.35-5.15a7.5 7.5 0 1 1-15 0 7.5 7.5 0 0 1 15 0Z" />
-          </svg>
-          <input id="searchInput" type="search" placeholder="아이디어 검색" />
-          <kbd>/</kbd>
-        </label>
-
-        <button class="primary-button top-add-button" id="topAddButton" type="button">
-          <span>+</span> 새 아이디어
-        </button>
-      </header>
-
-      <main>
-        <section class="hero">
+    <main class="app-shell">
+      <section id="projectHome">
+        <div class="hero">
           <div>
-            <p class="eyebrow">MY IDEA ARCHIVE</p>
-            <h1>생각을 붙잡고,<br /><em>가능성</em>을 꺼내보세요.</h1>
-            <p class="hero-copy">스쳐 가는 생각부터 시작하고 싶은 프로젝트까지.<br />한곳에 모으고, 언제든 다시 발견하세요.</p>
+            <p class="eyebrow">MY CREATIVE ARCHIVE</p>
+            <h1>흩어진 생각을<br /><em>프로젝트</em>로 모으세요.</h1>
+            <p>내 아이디어와 인스타그램, 유튜브 등에서 발견한 영감을<br />하나의 프로젝트 안에서 함께 정리할 수 있습니다.</p>
           </div>
-          <div class="hero-stats" aria-label="아이디어 통계">
-            <div>
-              <strong id="totalCount">0</strong>
-              <span>전체 아이디어</span>
-            </div>
-            <div>
-              <strong id="activeCount">0</strong>
-              <span>진행 중</span>
-            </div>
-            <div>
-              <strong id="favoriteCount">0</strong>
-              <span>즐겨찾기</span>
-            </div>
+          <div class="summary-card">
+            <div><strong id="projectCount">0</strong><span>프로젝트</span></div>
+            <div><strong id="ideaCount">0</strong><span>아이디어</span></div>
+            <div><strong id="inspirationCount">0</strong><span>영감 자료</span></div>
+          </div>
+        </div>
+
+        <section class="section">
+          <div class="section-heading">
+            <div><p class="eyebrow">PROJECTS</p><h2>나의 프로젝트</h2></div>
+            <button class="secondary-button" id="newProjectButton" type="button">+ 프로젝트 만들기</button>
+          </div>
+          <div class="project-grid" id="projectGrid"></div>
+          <div class="empty-state" id="projectEmpty" hidden>
+            <strong>첫 프로젝트를 만들어보세요.</strong>
+            <span>아이디어와 영감을 주제별로 모을 수 있습니다.</span>
           </div>
         </section>
+      </section>
 
-        <section class="quick-capture" id="captureSection">
-          <div class="capture-accent"></div>
-          <form id="ideaForm">
-            <div class="capture-main">
-              <label for="titleInput">지금 떠오른 생각은?</label>
-              <input id="titleInput" name="title" autocomplete="off" placeholder="짧은 문장으로 적어보세요..." required />
-            </div>
-            <div class="capture-details" id="captureDetails">
-              <textarea id="contentInput" name="content" placeholder="아이디어에 대한 설명을 덧붙여보세요."></textarea>
-              <div class="capture-options">
-                <input id="tagsInput" name="tags" placeholder="태그 입력 (쉼표로 구분)" />
-                <select id="statusInput" name="status" aria-label="아이디어 상태">
-                  <option value="spark">씨앗</option>
-                  <option value="active">진행 중</option>
-                  <option value="done">완료</option>
-                </select>
-                <button class="primary-button" type="submit">붙여두기 <span>→</span></button>
+      <section id="projectDetail" hidden>
+        <button class="back-button" id="backButton" type="button">← 모든 프로젝트</button>
+        <div class="detail-hero">
+          <div>
+            <div class="project-icon" id="detailIcon">✦</div>
+            <p class="eyebrow">PROJECT</p>
+            <h1 id="detailTitle"></h1>
+            <p id="detailDescription"></p>
+          </div>
+          <button class="danger-button" id="deleteProjectButton" type="button">프로젝트 삭제</button>
+        </div>
+
+        <div class="content-tabs" id="contentTabs">
+          <button class="active" data-tab="all" type="button">전체</button>
+          <button data-tab="ideas" type="button">나의 아이디어</button>
+          <button data-tab="inspirations" type="button">영감 자료</button>
+        </div>
+
+        <div class="action-grid">
+          <button class="action-card idea-action" id="addIdeaButton" type="button">
+            <span>01</span><strong>나의 아이디어 추가</strong><small>떠오른 생각과 메모를 직접 기록합니다.</small>
+          </button>
+          <button class="action-card inspiration-action" id="addInspirationButton" type="button">
+            <span>02</span><strong>영감 정보 추가</strong><small>인스타그램, 유튜브 등의 주소로 저장합니다.</small>
+          </button>
+        </div>
+
+        <section class="section">
+          <div class="section-heading">
+            <div><p class="eyebrow">COLLECTION</p><h2 id="collectionTitle">모든 기록</h2><small class="drag-guide">카드를 드래그해 순서를 변경할 수 있습니다.</small></div>
+            <select id="typeFilter" class="select-input" aria-label="자료 유형 필터">
+              <option value="all">모든 출처</option>
+              <option value="youtube">YouTube</option>
+              <option value="instagram">Instagram</option>
+              <option value="web">웹사이트</option>
+            </select>
+          </div>
+          <div class="collection-board" id="collectionBoard">
+            <section class="collection-panel idea-panel" id="ideaPanel">
+              <div class="panel-heading">
+                <div><span>MY IDEAS</span><h3>나의 아이디어</h3></div>
+                <strong id="ideaRecordCount">0</strong>
               </div>
-            </div>
-            <button class="capture-expand" id="captureExpand" type="button" aria-label="상세 입력 열기">
-              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14" /></svg>
-            </button>
-          </form>
-        </section>
-
-        <section class="board-section">
-          <div class="board-header">
-            <div>
-              <p class="section-label">IDEA BOARD</p>
-              <h2>나의 아이디어</h2>
-            </div>
-            <div class="board-actions">
-              <div class="filter-tabs" id="filterTabs">
-                <button class="active" data-filter="all" type="button">전체</button>
-                <button data-filter="favorite" type="button">즐겨찾기</button>
-                <button data-filter="active" type="button">진행 중</button>
-                <button data-filter="done" type="button">완료</button>
+              <div class="collection-grid" id="ideaCollectionGrid" data-record-list="idea"></div>
+              <div class="panel-empty" id="ideaCollectionEmpty" hidden>
+                <strong>아직 아이디어가 없습니다.</strong>
+                <span>떠오른 생각을 직접 기록해보세요.</span>
               </div>
-              <select id="sortSelect" class="sort-select" aria-label="정렬 기준">
-                <option value="newest">최신순</option>
-                <option value="oldest">오래된순</option>
-                <option value="title">이름순</option>
-              </select>
-            </div>
-          </div>
-
-          <div class="idea-grid" id="ideaGrid"></div>
-
-          <div class="empty-state" id="emptyState" hidden>
-            <span>✦</span>
-            <h3>아직 붙여둔 아이디어가 없어요.</h3>
-            <p>위 입력창에 첫 번째 생각을 기록해보세요.</p>
+            </section>
+            <section class="collection-panel inspiration-panel" id="inspirationPanel">
+              <div class="panel-heading">
+                <div><span>INSPIRATIONS</span><h3>영감 정보</h3></div>
+                <strong id="inspirationRecordCount">0</strong>
+              </div>
+              <div class="collection-grid" id="inspirationCollectionGrid" data-record-list="inspiration"></div>
+              <div class="panel-empty" id="inspirationCollectionEmpty" hidden>
+                <strong>아직 영감 정보가 없습니다.</strong>
+                <span>인상 깊은 링크를 저장해보세요.</span>
+              </div>
+            </section>
           </div>
         </section>
-      </main>
-    </div>
+      </section>
+    </main>
+
+    <dialog id="projectDialog">
+      <form id="projectForm">
+        <div class="dialog-head"><div><p class="eyebrow">NEW PROJECT</p><h2>새 프로젝트 만들기</h2></div><button class="close-button" data-close type="button">×</button></div>
+        <label>프로젝트 이름<input id="projectNameInput" required placeholder="예: 나만의 브랜드 만들기" /></label>
+        <label>설명<textarea id="projectDescriptionInput" placeholder="어떤 아이디어와 영감을 모을 프로젝트인가요?"></textarea></label>
+        <button class="primary-button full-button" type="submit">프로젝트 만들기</button>
+      </form>
+    </dialog>
 
     <dialog id="ideaDialog">
-      <form method="dialog" id="editForm">
-        <div class="dialog-top">
-          <span class="dialog-label">IDEA DETAIL</span>
-          <button class="icon-button" value="cancel" aria-label="닫기" type="submit">×</button>
-        </div>
-        <input id="editTitle" class="dialog-title" required />
-        <textarea id="editContent" class="dialog-content" placeholder="아이디어를 더 구체적으로 적어보세요."></textarea>
-        <div class="dialog-fields">
-          <label>태그 <input id="editTags" placeholder="쉼표로 구분" /></label>
-          <label>상태
-            <select id="editStatus">
-              <option value="spark">씨앗</option>
-              <option value="active">진행 중</option>
-              <option value="done">완료</option>
-            </select>
-          </label>
-        </div>
-        <div class="dialog-footer">
-          <button class="delete-button" id="deleteButton" type="button">아이디어 삭제</button>
-          <button class="primary-button" id="saveEditButton" type="button">변경사항 저장</button>
-        </div>
+      <form id="ideaForm">
+        <div class="dialog-head"><div><p class="eyebrow">MY IDEA</p><h2>아이디어 추가</h2></div><button class="close-button" data-close type="button">×</button></div>
+        <label>제목<input id="ideaTitleInput" required placeholder="아이디어를 한 문장으로 적어보세요" /></label>
+        <label>내용<textarea id="ideaContentInput" placeholder="생각을 자유롭게 확장해보세요."></textarea></label>
+        <label>태그<input id="ideaTagsInput" placeholder="쉼표로 구분해 입력" /></label>
+        <button class="primary-button full-button" type="submit">아이디어 저장</button>
       </form>
+    </dialog>
+
+    <dialog id="inspirationDialog">
+      <form id="inspirationForm">
+        <div class="dialog-head"><div><p class="eyebrow">INSPIRATION</p><h2>영감 정보 추가</h2></div><button class="close-button" data-close type="button">×</button></div>
+        <label>인스타그램, 유튜브 또는 웹 주소</label>
+        <div class="url-row">
+          <input id="urlInput" type="url" required placeholder="https://..." />
+          <button class="secondary-button" id="fetchMetadataButton" type="button">정보 가져오기</button>
+        </div>
+        <div class="fetch-status" id="fetchStatus">주소를 붙여넣으면 제목과 내용을 자동으로 가져옵니다.</div>
+        <div class="preview-card" id="metadataPreview" hidden>
+          <img id="previewImage" alt="" />
+          <div><span id="previewSource"></span><strong id="previewTitle"></strong><p id="previewDescription"></p></div>
+        </div>
+        <label>제목<input id="inspirationTitleInput" required placeholder="자동으로 입력되거나 직접 작성할 수 있습니다." /></label>
+        <label>메모<textarea id="inspirationMemoInput" placeholder="이 자료에서 얻은 영감이나 활용 아이디어"></textarea></label>
+        <label>태그<input id="inspirationTagsInput" placeholder="쉼표로 구분해 입력" /></label>
+        <button class="primary-button full-button" type="submit">영감 자료 저장</button>
+      </form>
+    </dialog>
+
+    <dialog id="recordDialog">
+      <div class="record-detail">
+        <button class="close-button record-close" data-close type="button">×</button>
+        <img id="recordImage" alt="" />
+        <span class="source-badge" id="recordSource"></span>
+        <h2 id="recordTitle"></h2>
+        <p id="recordBody"></p>
+        <div class="record-tags" id="recordTags"></div>
+        <a id="recordLink" target="_blank" rel="noopener noreferrer">원본 링크 열기 ↗</a>
+        <button class="danger-button" id="deleteRecordButton" type="button">이 기록 삭제</button>
+      </div>
     </dialog>
 
     <div class="toast" id="toast" role="status"></div>
