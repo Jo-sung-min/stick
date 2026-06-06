@@ -20,7 +20,12 @@
         <input id="searchInput" type="search" placeholder="프로젝트, 아이디어, 영감 검색" />
         <kbd>/</kbd>
       </label>
-      <button class="primary-button" id="headerAddButton" type="button">+ 새 프로젝트</button>
+      <div class="header-actions">
+        <button class="secondary-button compact-button" id="importDataButton" type="button">불러오기</button>
+        <button class="secondary-button compact-button" id="exportDataButton" type="button">내보내기</button>
+        <button class="primary-button" id="headerAddButton" type="button">+ 새 프로젝트</button>
+        <input id="importDataInput" type="file" accept=".json,.txt,application/json,text/plain" hidden />
+      </div>
     </header>
 
     <main class="app-shell">

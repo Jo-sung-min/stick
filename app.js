@@ -25,6 +25,42 @@ function loadProjects() {
   catch { return seedProjects; }
 }
 function saveProjects() { localStorage.setItem(STORAGE_KEY, JSON.stringify(projects)); }
+function validProjects(value) {
+  return Array.isArray(value) && value.every((project) =>
+    project && typeof project === "object"
+    && typeof project.id === "string"
+    && typeof project.name === "string"
+    && Array.isArray(project.ideas)
+    && Array.isArray(project.inspirations)
+  );
+}
+function exportData() {
+  const data = JSON.stringify({ format: "stick-backup", version: 1, exportedAt: new Date().toISOString(), projects }, null, 2);
+  const url = URL.createObjectURL(new Blob([data], { type: "application/json;charset=utf-8" }));
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = `stick-backup-${new Date().toISOString().slice(0, 10)}.json`;
+  link.click();
+  URL.revokeObjectURL(url);
+  showToast("데이터를 파일로 저장했습니다.");
+}
+async function importData(file) {
+  try {
+    const parsed = JSON.parse(await file.text());
+    const importedProjects = Array.isArray(parsed) ? parsed : parsed.projects;
+    if (!validProjects(importedProjects)) throw new Error("invalid backup");
+    if (!confirm("현재 데이터를 선택한 파일의 데이터로 교체할까요?")) return;
+    projects = importedProjects;
+    saveProjects();
+    closeDialogs();
+    showHome();
+    showToast("파일에서 데이터를 불러왔습니다.");
+  } catch {
+    showToast("올바른 stick 데이터 파일이 아닙니다.");
+  } finally {
+    $("#importDataInput").value = "";
+  }
+}
 function activeProject() { return projects.find((project) => project.id === activeProjectId); }
 function escapeHtml(value = "") { return String(value).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#039;" })[c]); }
 function formatDate(value) { return new Intl.DateTimeFormat("ko-KR", { month: "short", day: "numeric" }).format(new Date(value)); }
@@ -323,6 +359,12 @@ $("#deleteRecordButton").addEventListener("click", () => {
 });
 $("#deleteProjectButton").addEventListener("click", () => { if (!confirm("이 프로젝트와 안의 모든 기록을 삭제할까요?")) return; projects = projects.filter((project) => project.id !== activeProjectId); saveProjects(); showHome(); showToast("프로젝트를 삭제했습니다."); });
 $("#newProjectButton").addEventListener("click", openProjectDialog);
+$("#exportDataButton").addEventListener("click", exportData);
+$("#importDataButton").addEventListener("click", () => $("#importDataInput").click());
+$("#importDataInput").addEventListener("change", (event) => {
+  const [file] = event.target.files;
+  if (file) importData(file);
+});
 $("#headerAddButton").addEventListener("click", () => activeProjectId ? openIdeaDialog() : openProjectDialog());
 $("#addIdeaButton").addEventListener("click", openIdeaDialog);
 $("#addInspirationButton").addEventListener("click", openInspirationDialog);
