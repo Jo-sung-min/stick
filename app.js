@@ -15,6 +15,7 @@ let projects = loadProjects();
 let activeProjectId = null;
 let activeTab = "all";
 let activeRecord = null;
+let editingRecord = null;
 let fetchedMetadata = null;
 let draggedRecord = null;
 let suppressRecordClick = false;
@@ -200,12 +201,40 @@ function showProject(id) {
   window.scrollTo({ top: 0, behavior: "smooth" });
 }
 function openProjectDialog() { $("#projectForm").reset(); $("#projectDialog").showModal(); }
-function openIdeaDialog() { $("#ideaForm").reset(); $("#ideaDialog").showModal(); }
-function openInspirationDialog() {
+function openIdeaDialog(record = null) {
+  editingRecord = record;
+  $("#ideaForm").reset();
+  $("#ideaForm").querySelector(".dialog-head h2").textContent = record ? "아이디어 수정" : "아이디어 추가";
+  $("#ideaForm").querySelector('[type="submit"]').textContent = record ? "수정 내용 저장" : "아이디어 저장";
+  if (record) {
+    $("#ideaTitleInput").value = record.title || "";
+    $("#ideaContentInput").value = record.body || "";
+    $("#ideaTagsInput").value = (record.tags || []).join(", ");
+  }
+  $("#ideaDialog").showModal();
+}
+function openInspirationDialog(record = null) {
+  editingRecord = record;
   $("#inspirationForm").reset();
+  $("#inspirationForm").querySelector(".dialog-head h2").textContent = record ? "영감 정보 수정" : "영감 정보 추가";
+  $("#inspirationForm").querySelector('[type="submit"]').textContent = record ? "수정 내용 저장" : "영감 자료 저장";
   $("#metadataPreview").hidden = true;
   $("#fetchStatus").textContent = "주소를 붙여넣으면 제목과 내용을 자동으로 가져옵니다.";
-  fetchedMetadata = null;
+  fetchedMetadata = record ? { source: record.source, image: record.image, description: record.body } : null;
+  if (record) {
+    $("#urlInput").value = record.url || "";
+    $("#inspirationTitleInput").value = record.title || "";
+    $("#inspirationMemoInput").value = record.body || "";
+    $("#inspirationTagsInput").value = (record.tags || []).join(", ");
+    if (record.image) {
+      $("#previewImage").src = record.image;
+      $("#previewImage").hidden = false;
+      $("#previewSource").textContent = sourceLabel(record.source || "web");
+      $("#previewTitle").textContent = record.title || "";
+      $("#previewDescription").textContent = record.body || "";
+      $("#metadataPreview").hidden = false;
+    }
+  }
   $("#inspirationDialog").showModal();
 }
 
@@ -294,13 +323,19 @@ $("#projectForm").addEventListener("submit", (event) => {
 });
 $("#ideaForm").addEventListener("submit", (event) => {
   event.preventDefault();
-  activeProject().ideas.unshift({ id: crypto.randomUUID(), type: "idea", source: "idea", title: $("#ideaTitleInput").value.trim(), body: $("#ideaContentInput").value.trim(), tags: tags($("#ideaTagsInput").value), createdAt: new Date().toISOString() });
+  const values = { title: $("#ideaTitleInput").value.trim(), body: $("#ideaContentInput").value.trim(), tags: tags($("#ideaTagsInput").value) };
+  if (editingRecord?.type === "idea") Object.assign(editingRecord, values);
+  else activeProject().ideas.unshift({ id: crypto.randomUUID(), type: "idea", source: "idea", ...values, createdAt: new Date().toISOString() });
+  editingRecord = null;
   saveProjects(); closeDialogs(); renderDetail(); showToast("아이디어를 저장했습니다.");
 });
 $("#inspirationForm").addEventListener("submit", (event) => {
   event.preventDefault();
   const url = $("#urlInput").value.trim();
-  activeProject().inspirations.unshift({ id: crypto.randomUUID(), type: "inspiration", source: fetchedMetadata?.source || sourceFromUrl(url), title: $("#inspirationTitleInput").value.trim(), body: $("#inspirationMemoInput").value.trim() || fetchedMetadata?.description || "", image: fetchedMetadata?.image || "", url, tags: tags($("#inspirationTagsInput").value), createdAt: new Date().toISOString() });
+  const values = { source: fetchedMetadata?.source || sourceFromUrl(url), title: $("#inspirationTitleInput").value.trim(), body: $("#inspirationMemoInput").value.trim() || fetchedMetadata?.description || "", image: fetchedMetadata?.image || "", url, tags: tags($("#inspirationTagsInput").value) };
+  if (editingRecord?.type === "inspiration") Object.assign(editingRecord, values);
+  else activeProject().inspirations.unshift({ id: crypto.randomUUID(), type: "inspiration", ...values, createdAt: new Date().toISOString() });
+  editingRecord = null;
   saveProjects(); closeDialogs(); renderDetail(); showToast("영감 자료를 저장했습니다.");
 });
 
@@ -365,9 +400,15 @@ $("#importDataInput").addEventListener("change", (event) => {
   const [file] = event.target.files;
   if (file) importData(file);
 });
+$("#editRecordButton").addEventListener("click", () => {
+  const record = activeRecord;
+  closeDialogs();
+  if (record.type === "idea") openIdeaDialog(record);
+  else openInspirationDialog(record);
+});
 $("#headerAddButton").addEventListener("click", () => activeProjectId ? openIdeaDialog() : openProjectDialog());
-$("#addIdeaButton").addEventListener("click", openIdeaDialog);
-$("#addInspirationButton").addEventListener("click", openInspirationDialog);
+$("#addIdeaButton").addEventListener("click", () => openIdeaDialog());
+$("#addInspirationButton").addEventListener("click", () => openInspirationDialog());
 $("#fetchMetadataButton").addEventListener("click", fetchMetadata);
 $("#urlInput").addEventListener("paste", () => setTimeout(fetchMetadata, 50));
 $("#homeButton").addEventListener("click", showHome);
